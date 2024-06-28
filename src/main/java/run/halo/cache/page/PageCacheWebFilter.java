@@ -2,7 +2,6 @@ package run.halo.cache.page;
 
 import static java.nio.ByteBuffer.allocateDirect;
 import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
-import static run.halo.app.infra.AnonymousUserConst.isAnonymousUser;
 
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +18,6 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
 import org.springframework.lang.NonNull;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.server.context.ServerSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -29,6 +25,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.security.AdditionalWebFilter;
+import run.halo.app.theme.router.ModelConst;
 
 @Slf4j
 @Component
@@ -48,16 +45,21 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
         this.serverSecurityContextRepository = serverSecurityContextRepository;
     }
 
+    private static boolean hasRequestBody(ServerHttpRequest request) {
+        return request.getHeaders().getContentLength() > 0;
+    }
+
     @Override
     @NonNull
     public Mono<Void> filter(@NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
-       return serverSecurityContextRepository.load(exchange)
+        return serverSecurityContextRepository.load(exchange)
             .switchIfEmpty(Mono.defer(() -> {
                 var cacheKey = generateCacheKey(exchange.getRequest());
                 var cachedResponse = cache.get(cacheKey, CachedResponse.class);
                 if (cachedResponse != null) {
                     // cache hit, then write the cached response
-                    return writeCachedResponse(exchange.getResponse(), cachedResponse).then(Mono.empty());
+                    return writeCachedResponse(exchange.getResponse(), cachedResponse).then(
+                        Mono.empty());
                 }
                 // decorate the ServerHttpResponse to cache the response
                 var decoratedExchange = exchange.mutate()
@@ -66,24 +68,6 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
                 return chain.filter(decoratedExchange).then(Mono.empty());
             }))
             .flatMap(securityContext -> chain.filter(exchange).then(Mono.empty()));
-        // return ReactiveSecurityContextHolder.getContext()
-        //     .map(SecurityContext::getAuthentication)
-        //     .map(Authentication::getName)
-        //     .filter(name -> isAnonymousUser(name) && requestCacheable(exchange.getRequest()))
-        //     .switchIfEmpty(Mono.defer(() -> chain.filter(exchange).then(Mono.empty())))
-        //     .flatMap(name -> {
-        //         var cacheKey = generateCacheKey(exchange.getRequest());
-        //         var cachedResponse = cache.get(cacheKey, CachedResponse.class);
-        //         if (cachedResponse != null) {
-        //             // cache hit, then write the cached response
-        //             return writeCachedResponse(exchange.getResponse(), cachedResponse);
-        //         }
-        //         // decorate the ServerHttpResponse to cache the response
-        //         var decoratedExchange = exchange.mutate()
-        //             .response(new CacheResponseDecorator(exchange, cacheKey))
-        //             .build();
-        //         return chain.filter(decoratedExchange);
-        //     });
     }
 
     private boolean requestCacheable(ServerHttpRequest request) {
@@ -108,11 +92,7 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
         if (statusCode == null || !statusCode.isSameCodeAs(HttpStatus.OK)) {
             return false;
         }
-        return true;
-    }
-
-    private static boolean hasRequestBody(ServerHttpRequest request) {
-        return request.getHeaders().getContentLength() > 0;
+        return exchange.getAttributeOrDefault(ModelConst.POWERED_BY_HALO_TEMPLATE_ENGINE, false);
     }
 
     private String generateCacheKey(ServerHttpRequest request) {
