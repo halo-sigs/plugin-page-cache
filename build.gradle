@@ -5,10 +5,11 @@ plugins {
     id "run.halo.plugin.devtools" version "0.0.9"
 }
 
-group 'run.halo.starter'
+group 'run.halo.cache.page'
 sourceCompatibility = JavaVersion.VERSION_17
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven { url 'https://s01.oss.sonatype.org/content/repositories/releases' }
     maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
@@ -16,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation platform('run.halo.tools.platform:plugin:2.11.0-SNAPSHOT')
+    implementation platform('run.halo.tools.platform:plugin:2.17.0-SNAPSHOT')
     compileOnly 'run.halo.app:api'
 
     testImplementation 'run.halo.app:api'
@@ -52,5 +53,6 @@ build {
 }
 
 halo {
-    version = '2.11'
+    version = '2.17.0-beta.1'
+    debug = true
 }

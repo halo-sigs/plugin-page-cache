@@ -1,0 +1,9 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: ExtensionDefinition
+metadata:
+  name: page-cache-handler
+spec:
+  className: run.halo.cache.page.PageCacheWebFilter
+  extensionPointName: additional-webfilter
+  displayName: "页面静态缓存"
+  description: "通过拦截页面请求，以实现页面的静态缓存功能，提高页面访问速度。"
