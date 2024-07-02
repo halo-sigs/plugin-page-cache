@@ -1,4 +1,4 @@
-package run.halo.starter;
+package run.halo.cache.page;
 
 import org.springframework.stereotype.Component;
 import run.halo.app.plugin.BasePlugin;
@@ -13,19 +13,9 @@ import run.halo.app.plugin.PluginContext;
  * @since 1.0.0
  */
 @Component
-public class StarterPlugin extends BasePlugin {
+public class PageCachePlugin extends BasePlugin {
 
-    public StarterPlugin(PluginContext pluginContext) {
+    public PageCachePlugin(PluginContext pluginContext) {
         super(pluginContext);
-    }
-
-    @Override
-    public void start() {
-        System.out.println("插件启动成功！");
-    }
-
-    @Override
-    public void stop() {
-        System.out.println("插件停止！");
     }
 }
