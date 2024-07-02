@@ -31,8 +31,6 @@ import run.halo.app.theme.router.ModelConst;
 @Component
 public class PageCacheWebFilter implements AdditionalWebFilter {
 
-    public static final String REQUEST_TO_CACHE = "RequestCacheWebFilterToCache";
-
     public static final String CACHE_NAME = "page";
 
     private final Cache cache;
