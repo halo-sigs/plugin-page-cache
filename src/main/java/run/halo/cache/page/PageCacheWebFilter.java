@@ -4,6 +4,7 @@ import static java.nio.ByteBuffer.allocateDirect;
 import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
 
 import java.time.Instant;
+import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 import org.springframework.cache.Cache;
@@ -18,7 +19,6 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
 import org.springframework.lang.NonNull;
-import org.springframework.security.web.server.context.ServerSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilterChain;
@@ -35,12 +35,18 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
 
     private final Cache cache;
 
-    private final ServerSecurityContextRepository serverSecurityContextRepository;
+    private final PrincipalNameResolver principalNameResolver;
+
+    private final Predicate<ServerHttpRequest> requestDisableCache = Predicate.not(
+        request -> HttpMethod.GET.equals(request.getMethod())
+            && !hasRequestBody(request)
+            && enableCacheByCacheControl(request.getHeaders())
+    );
 
     public PageCacheWebFilter(CacheManager cacheManager,
-        ServerSecurityContextRepository serverSecurityContextRepository) {
+        PrincipalNameResolver principalNameResolver) {
         this.cache = cacheManager.getCache(CACHE_NAME);
-        this.serverSecurityContextRepository = serverSecurityContextRepository;
+        this.principalNameResolver = principalNameResolver;
     }
 
     private static boolean hasRequestBody(ServerHttpRequest request) {
@@ -50,8 +56,11 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
     @Override
     @NonNull
     public Mono<Void> filter(@NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
-        return serverSecurityContextRepository.load(exchange)
-            .switchIfEmpty(Mono.defer(() -> {
+        return isAuthenticated(exchange)
+            .flatMap(isAuthenticated -> {
+                if (isAuthenticated || requestDisableCache.test(exchange.getRequest())) {
+                    return chain.filter(exchange).then(Mono.empty());
+                }
                 var cacheKey = generateCacheKey(exchange.getRequest());
                 var cachedResponse = cache.get(cacheKey, CachedResponse.class);
                 if (cachedResponse != null) {
@@ -64,21 +73,22 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
                     .response(new CacheResponseDecorator(exchange, cacheKey))
                     .build();
                 return chain.filter(decoratedExchange).then(Mono.empty());
-            }))
-            .flatMap(securityContext -> chain.filter(exchange).then(Mono.empty()));
+            });
     }
 
-    private boolean requestCacheable(ServerHttpRequest request) {
-        return HttpMethod.GET.equals(request.getMethod())
-            && !hasRequestBody(request)
-            && enableCacheByCacheControl(request.getHeaders());
+    private Mono<Boolean> isAuthenticated(ServerWebExchange exchange) {
+        return exchange.getSession()
+            .mapNotNull(principalNameResolver::resolveValueFor)
+            .hasElement();
     }
 
     private boolean enableCacheByCacheControl(HttpHeaders headers) {
         return headers.getOrEmpty(CACHE_CONTROL)
             .stream()
-            .noneMatch(cacheControl ->
-                "no-store".equals(cacheControl) || "private".equals(cacheControl));
+            .noneMatch(cacheControl -> "no-store".equals(cacheControl)
+                || "private".equals(cacheControl)
+                || "no-cache".equals(cacheControl)
+            );
     }
 
     private boolean responseCacheable(ServerWebExchange exchange) {

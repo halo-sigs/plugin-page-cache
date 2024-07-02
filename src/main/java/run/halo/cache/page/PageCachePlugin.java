@@ -1,5 +1,8 @@
 package run.halo.cache.page;
 
+import static run.halo.cache.page.PageCacheWebFilter.CACHE_NAME;
+
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
 import run.halo.app.plugin.BasePlugin;
 import run.halo.app.plugin.PluginContext;
@@ -14,8 +17,18 @@ import run.halo.app.plugin.PluginContext;
  */
 @Component
 public class PageCachePlugin extends BasePlugin {
+    private final CacheManager cacheManager;
 
-    public PageCachePlugin(PluginContext pluginContext) {
+    public PageCachePlugin(PluginContext pluginContext, CacheManager cacheManager) {
         super(pluginContext);
+        this.cacheManager = cacheManager;
+    }
+
+    @Override
+    public void stop() {
+        var cache = cacheManager.getCache(CACHE_NAME);
+        if (cache != null) {
+            cache.clear();
+        }
     }
 }
