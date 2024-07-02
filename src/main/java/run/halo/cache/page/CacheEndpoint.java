@@ -24,7 +24,7 @@ public class CacheEndpoint implements CustomEndpoint {
 
     @Override
     public RouterFunction<ServerResponse> endpoint() {
-        final var tag = groupVersion().toString() + "/page-cache";
+        final var tag = "CacheV1alpha1Console";
         return SpringdocRouteBuilder.route()
             .DELETE("/caches/page", this::evictCache, builder -> {
                 builder
