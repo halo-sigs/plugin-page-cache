@@ -18,3 +18,4 @@ jobs:
       pnpm-version: "9"
       app-id: app-BaamQ
       skip-node-setup: false
+      ui-path: "ui"
