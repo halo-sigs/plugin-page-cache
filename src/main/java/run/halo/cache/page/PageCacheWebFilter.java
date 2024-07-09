@@ -1,10 +1,10 @@
 package run.halo.cache.page;
 
 import static java.nio.ByteBuffer.allocateDirect;
-import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
+import static org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher.MatchResult;
 
 import java.time.Instant;
-import java.util.function.Predicate;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 import org.springframework.cache.Cache;
@@ -19,76 +19,83 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
 import org.springframework.lang.NonNull;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.web.server.util.matcher.AndServerWebExchangeMatcher;
+import org.springframework.security.web.server.util.matcher.MediaTypeServerWebExchangeMatcher;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import run.halo.app.security.AdditionalWebFilter;
+import run.halo.app.infra.AnonymousUserConst;
+import run.halo.app.security.AfterSecurityWebFilter;
 import run.halo.app.theme.router.ModelConst;
 
 @Slf4j
 @Component
-public class PageCacheWebFilter implements AdditionalWebFilter {
+public class PageCacheWebFilter implements AfterSecurityWebFilter {
 
     public static final String CACHE_NAME = "page";
 
     private final Cache cache;
 
-    private final PrincipalNameResolver principalNameResolver;
+    private final ServerWebExchangeMatcher exchangeMatcher;
 
-    private final Predicate<ServerHttpRequest> requestDisableCache = Predicate.not(
-        request -> HttpMethod.GET.equals(request.getMethod())
-            && !hasRequestBody(request)
-            && enableCacheByCacheControl(request.getHeaders())
-    );
-
-    public PageCacheWebFilter(CacheManager cacheManager,
-        PrincipalNameResolver principalNameResolver) {
+    public PageCacheWebFilter(CacheManager cacheManager) {
         this.cache = cacheManager.getCache(CACHE_NAME);
-        this.principalNameResolver = principalNameResolver;
-    }
 
-    private static boolean hasRequestBody(ServerHttpRequest request) {
-        return request.getHeaders().getContentLength() > 0;
+        var htmlMatcher = new MediaTypeServerWebExchangeMatcher(MediaType.TEXT_HTML);
+        htmlMatcher.setIgnoredMediaTypes(Set.of(MediaType.ALL));
+        var pathMatcher = ServerWebExchangeMatchers.pathMatchers(HttpMethod.GET, "/**");
+        ServerWebExchangeMatcher cacheableMatcher = exchange -> {
+            var cacheControl = exchange.getRequest().getHeaders().getCacheControl();
+            if ("no-cache".equals(cacheControl)) {
+                return MatchResult.notMatch();
+            }
+            return MatchResult.match();
+        };
+        ServerWebExchangeMatcher anonymousMatcher =
+            exchange -> ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .map(Authentication::getName)
+                .filter(name -> !AnonymousUserConst.isAnonymousUser(name))
+                .flatMap(name -> MatchResult.notMatch())
+                .switchIfEmpty(Mono.defer(MatchResult::match));
+
+        this.exchangeMatcher = new AndServerWebExchangeMatcher(
+            htmlMatcher, pathMatcher, cacheableMatcher, anonymousMatcher
+        );
     }
 
     @Override
     @NonNull
     public Mono<Void> filter(@NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
-        return isAuthenticated(exchange)
-            .flatMap(isAuthenticated -> {
-                if (isAuthenticated || requestDisableCache.test(exchange.getRequest())) {
-                    return chain.filter(exchange).then(Mono.empty());
-                }
+        return this.exchangeMatcher.matches(exchange)
+            .filter(MatchResult::isMatch)
+            .switchIfEmpty(Mono.defer(() -> {
+                log.debug("Skip caching for {} because not cacheable",
+                    exchange.getRequest().getURI());
+                return chain.filter(exchange).then(Mono.empty());
+            }))
+            .flatMap(matchResult -> {
+                // anonymous authentication
                 var cacheKey = generateCacheKey(exchange.getRequest());
                 var cachedResponse = cache.get(cacheKey, CachedResponse.class);
                 if (cachedResponse != null) {
+                    log.debug("Retrieved cached response for {}", cacheKey);
                     // cache hit, then write the cached response
-                    return writeCachedResponse(exchange.getResponse(), cachedResponse).then(
-                        Mono.empty());
+                    return writeCachedResponse(exchange.getResponse(), cachedResponse);
                 }
                 // decorate the ServerHttpResponse to cache the response
                 var decoratedExchange = exchange.mutate()
                     .response(new CacheResponseDecorator(exchange, cacheKey))
                     .build();
-                return chain.filter(decoratedExchange).then(Mono.empty());
+                return chain.filter(decoratedExchange);
             });
-    }
-
-    private Mono<Boolean> isAuthenticated(ServerWebExchange exchange) {
-        return exchange.getSession()
-            .mapNotNull(principalNameResolver::resolveValueFor)
-            .hasElement();
-    }
-
-    private boolean enableCacheByCacheControl(HttpHeaders headers) {
-        return headers.getOrEmpty(CACHE_CONTROL)
-            .stream()
-            .noneMatch(cacheControl -> "no-store".equals(cacheControl)
-                || "private".equals(cacheControl)
-                || "no-cache".equals(cacheControl)
-            );
     }
 
     private boolean responseCacheable(ServerWebExchange exchange) {
@@ -109,10 +116,11 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
 
     private Mono<Void> writeCachedResponse(ServerHttpResponse response,
         CachedResponse cachedResponse) {
-        response.setStatusCode(cachedResponse.statusCode());
+        response.setStatusCode(cachedResponse.getStatusCode());
         response.getHeaders().clear();
-        response.getHeaders().addAll(cachedResponse.headers());
-        var body = Flux.fromIterable(cachedResponse.body())
+        response.getHeaders().addAll(cachedResponse.getHeaders());
+        response.getHeaders().setInstant("X-Halo-Cache-At", cachedResponse.getTimestamp());
+        var body = Flux.fromIterable(cachedResponse.getBody())
             .map(byteBuffer -> response.bufferFactory().wrap(byteBuffer));
         return response.writeWith(body);
     }
@@ -133,7 +141,24 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
         @NonNull
         public Mono<Void> writeWith(@NonNull Publisher<? extends DataBuffer> body) {
             if (responseCacheable(exchange)) {
+                log.debug("Caching response for {}", cacheKey);
                 var response = getDelegate();
+
+                var builder = new CachedResponse.CachedResponseBuilder();
+                response.beforeCommit(
+                    () -> Mono.fromRunnable(() -> {
+                        var statusCode = getStatusCode();
+                        if (statusCode != null && statusCode.is2xxSuccessful()) {
+                            // we only cache response with 2xx status code
+                            var headers = new HttpHeaders();
+                            headers.addAll(getHeaders());
+                            builder.statusCode(statusCode);
+                            builder.timestamp(Instant.now());
+                            builder.headers(headers);
+                            cache.put(cacheKey, builder.build());
+                        }
+                    })
+                );
                 body = Flux.from(body)
                     .map(dataBuffer -> {
                         var byteBuffer = allocateDirect(dataBuffer.readableByteCount());
@@ -142,15 +167,7 @@ public class PageCacheWebFilter implements AdditionalWebFilter {
                         return byteBuffer.asReadOnlyBuffer();
                     })
                     .collectSortedList()
-                    .doOnSuccess(byteBuffers -> {
-                        var headers = new HttpHeaders();
-                        headers.addAll(response.getHeaders());
-                        var cachedResponse = new CachedResponse(response.getStatusCode(),
-                            headers,
-                            byteBuffers,
-                            Instant.now());
-                        cache.put(cacheKey, cachedResponse);
-                    })
+                    .doOnNext(builder::body)
                     .flatMapMany(Flux::fromIterable)
                     .map(byteBuffer -> response.bufferFactory().wrap(byteBuffer));
             }
