@@ -124,7 +124,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
         response.getHeaders().setInstant("X-Halo-Cache-At", cachedResponse.getTimestamp());
         var body = Flux.fromIterable(cachedResponse.getBody())
             .map(byteBuffer -> response.bufferFactory().wrap(byteBuffer));
-        return response.writeWith(body);
+        return response.writeAndFlushWith(Flux.from(body).window(1));
     }
 
     class CacheResponseDecorator extends ServerHttpResponseDecorator {
