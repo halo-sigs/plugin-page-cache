@@ -38,13 +38,12 @@ public class CacheEndpoint implements CustomEndpoint {
     }
 
     private Mono<ServerResponse> evictCache(ServerRequest request) {
-        if (cacheManager.getCacheNames().contains("page")) {
-            var cache = cacheManager.getCache("page");
+        return Mono.fromRunnable(() -> {
+            var cache = cacheManager.getCache(PageCacheWebFilter.CACHE_NAME);
             if (cache != null) {
                 cache.invalidate();
             }
-        }
-        return ServerResponse.accepted().build();
+        }).then(ServerResponse.ok().build());
     }
 
     @Override

@@ -17,6 +17,7 @@ import run.halo.app.plugin.PluginContext;
  */
 @Component
 public class PageCachePlugin extends BasePlugin {
+
     private final CacheManager cacheManager;
 
     public PageCachePlugin(PluginContext pluginContext, CacheManager cacheManager) {
