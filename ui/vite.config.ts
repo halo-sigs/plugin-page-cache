@@ -1,21 +1,23 @@
 import { fileURLToPath, URL } from "url";
 
-import { defineConfig } from "vite";
-import Vue from "@vitejs/plugin-vue";
-import VueJsx from "@vitejs/plugin-vue-jsx";
-import Icons from "unplugin-icons/vite";
-import { HaloUIPluginBundlerKit } from "@halo-dev/ui-plugin-bundler-kit";
+import { viteConfig } from '@halo-dev/ui-plugin-bundler-kit'
+import Icons from 'unplugin-icons/vite'
+import { configDefaults } from 'vitest/config'
 
-export default defineConfig({
-  plugins: [
-    Vue(),
-    VueJsx(),
-    Icons({ compiler: "vue3" }),
-    HaloUIPluginBundlerKit(),
-  ],
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+export default viteConfig({
+  vite: {
+    plugins: [Icons({ compiler: 'vue3' })],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+    },
+
+    // If you don't use Vitest, you can remove the following configuration
+    test: {
+      environment: 'jsdom',
+      exclude: [...configDefaults.exclude, 'e2e/**'],
+      root: fileURLToPath(new URL('./', import.meta.url)),
     },
   },
-});
+})

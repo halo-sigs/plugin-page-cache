@@ -4,20 +4,20 @@
     "dev": "vite build --watch --mode=development",
     "build": "vite build",
     "preview": "vite preview --port 4173",
-    "test:unit": "vitest --environment jsdom",
+    "test:unit": "vitest --environment jsdom --passWithNoTests",
     "type-check": "vue-tsc --noEmit -p tsconfig.vitest.json --composite false",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"
   },
   "dependencies": {
-    "@halo-dev/api-client": "^2.17.0",
-    "@halo-dev/components": "^2.17.0",
-    "@halo-dev/console-shared": "^2.17.0",
+    "@halo-dev/api-client": "^2.21.0",
+    "@halo-dev/components": "^2.21.0",
+    "@halo-dev/console-shared": "^2.21.0",
     "axios": "^1.7.2",
     "canvas-confetti": "^1.9.3",
     "vue": "^3.4.31"
   },
   "devDependencies": {
-    "@halo-dev/ui-plugin-bundler-kit": "^2.17.0",
+    "@halo-dev/ui-plugin-bundler-kit": "^2.21.1",
     "@iconify/json": "^2.2.224",
     "@rushstack/eslint-patch": "^1.10.3",
     "@types/canvas-confetti": "^1.6.4",
@@ -40,5 +40,6 @@
     "vite": "^5.3.2",
     "vitest": "^0.24.5",
     "vue-tsc": "^2.0.24"
-  }
+  },
+  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184"
 }
