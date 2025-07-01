@@ -1,6 +1,7 @@
 package run.halo.cache.page;
 
 import static java.nio.ByteBuffer.allocate;
+import static org.springframework.http.HttpHeaders.readOnlyHttpHeaders;
 import static org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher.MatchResult;
 
 import java.nio.ByteBuffer;
@@ -18,7 +19,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.Authentication;
@@ -90,7 +90,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 if (cachedResponse != null) {
                     log.debug("Retrieved cached response for {}", cacheKey);
                     // cache hit, then write the cached response
-                    return writeCachedResponse(exchange.getResponse(), cachedResponse);
+                    return writeCachedResponse(exchange, cachedResponse);
                 }
                 // decorate the ServerHttpResponse to cache the response
                 var decoratedExchange = exchange.mutate()
@@ -112,16 +112,30 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
         return exchange.getAttributeOrDefault(ModelConst.POWERED_BY_HALO_TEMPLATE_ENGINE, false);
     }
 
-    private String generateCacheKey(ServerHttpRequest request) {
+    private static String generateCacheKey(ServerHttpRequest request) {
         return request.getURI().toASCIIString();
     }
 
-    private Mono<Void> writeCachedResponse(ServerHttpResponse response,
+    private static Mono<Void> writeCachedResponse(ServerWebExchange exchange,
         CachedResponse cachedResponse) {
-        response.setStatusCode(cachedResponse.getStatusCode());
-        response.getHeaders().clear();
-        response.getHeaders().addAll(cachedResponse.getHeaders());
-        response.getHeaders().setInstant("X-Halo-Cache-At", cachedResponse.getTimestamp());
+        if (exchange.checkNotModified(cachedResponse.getTimestamp())) {
+            return exchange.getResponse().setComplete();
+        }
+        var response = exchange.getResponse();
+        response.beforeCommit(() -> Mono.fromRunnable(() -> {
+            response.setStatusCode(cachedResponse.getStatusCode());
+            cachedResponse.getHeaders().forEach((key, values) -> {
+                if (!response.getHeaders().containsKey(key)) {
+                    response.getHeaders().put(key, values);
+                }
+            });
+            response.getHeaders().remove(HttpHeaders.CACHE_CONTROL);
+            response.getHeaders().remove(HttpHeaders.EXPIRES);
+            response.getHeaders().remove(HttpHeaders.PRAGMA);
+
+            response.getHeaders().setInstant("X-Halo-Cache-At", cachedResponse.getTimestamp());
+        }));
+
         var body = Flux.fromIterable(cachedResponse.getBody())
             .map(byteBuffer -> response.bufferFactory().wrap(byteBuffer));
         return response.writeAndFlushWith(Flux.from(body).window(1));
@@ -148,18 +162,25 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 var builder = new CachedResponse.CachedResponseBuilder();
                 var headers = new HttpHeaders();
                 headers.addAll(getHeaders());
+                headers.setCacheControl((String) null);
                 builder.statusCode(getStatusCode());
                 builder.timestamp(Instant.now());
-                builder.headers(headers);
+                builder.headers(readOnlyHttpHeaders(headers));
                 var bodyCopies = new ArrayList<ByteBuffer>();
                 if (body instanceof Flux<? extends Publisher<? extends DataBuffer>> fluxBody) {
-                    body = fluxBody.concatMap(content -> copyBody(content, bodyCopies))
+                    return fluxBody.concatMap(content -> copyBody(content, bodyCopies))
                         .window(1)
-                        .doOnComplete(putCache(builder, bodyCopies));
+                        .doOnComplete(putCache(builder, bodyCopies))
+                        .then(Mono.defer(
+                            () -> writeCachedResponse(exchange, builder.build())
+                        ));
                 } else if (body instanceof Mono<? extends Publisher<? extends DataBuffer>> monoBody) {
-                    body = monoBody.flatMapMany(content -> copyBody(content, bodyCopies))
+                    return monoBody.flatMapMany(content -> copyBody(content, bodyCopies))
                         .window(1)
-                        .doOnComplete(putCache(builder, bodyCopies));
+                        .doOnComplete(putCache(builder, bodyCopies))
+                        .then(Mono.defer(
+                            () -> writeCachedResponse(exchange, builder.build())
+                        ));
                 }
             }
             return super.writeAndFlushWith(body);
@@ -175,10 +196,13 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 headers.addAll(getHeaders());
                 builder.statusCode(getStatusCode());
                 builder.timestamp(Instant.now());
-                builder.headers(headers);
+                builder.headers(readOnlyHttpHeaders(headers));
                 var bodyCopies = new ArrayList<ByteBuffer>();
-                body = copyBody(body, bodyCopies)
-                    .doOnComplete(putCache(builder, bodyCopies));
+                return copyBody(body, bodyCopies)
+                    .doOnComplete(putCache(builder, bodyCopies))
+                    .then(Mono.defer(
+                        () -> writeCachedResponse(exchange, builder.build())
+                    ));
             }
             // write the response
             return super.writeWith(body);
