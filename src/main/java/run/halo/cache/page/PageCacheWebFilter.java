@@ -45,19 +45,9 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
     public static final String CACHE_NAME = "page";
 
     /**
-     * The value for expires value
-     */
-    public static final int EXPIRES_VALUE = 0;
-
-    /**
-     * The value for pragma value
-     */
-    public static final String PRAGMA_VALUE = "no-cache";
-
-    /**
      * The value for cache control value
      */
-    public static final String CACHE_CONTROL_VALUE = "no-cache, max-age=0, must-revalidate";
+    public static final String CACHE_CONTROL_VALUE = "max-age=3, must-revalidate";
 
     public static final String HALO_CACHE_AT_HEADER = "X-Halo-Cache-At";
 
@@ -161,8 +151,6 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
 
     private static void setCacheControl(ServerHttpResponse response) {
         response.getHeaders().setCacheControl(CACHE_CONTROL_VALUE);
-        response.getHeaders().setPragma(PRAGMA_VALUE);
-        response.getHeaders().setExpires(EXPIRES_VALUE);
     }
 
     class CacheResponseDecorator extends ServerHttpResponseDecorator {
