@@ -19,6 +19,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.Authentication;
@@ -42,6 +43,13 @@ import run.halo.app.theme.router.ModelConst;
 public class PageCacheWebFilter implements AfterSecurityWebFilter {
 
     public static final String CACHE_NAME = "page";
+
+    /**
+     * The value for cache control value
+     */
+    public static final String CACHE_CONTROL_VALUE = "max-age=3, must-revalidate";
+
+    public static final String HALO_CACHE_AT_HEADER = "X-Halo-Cache-At";
 
     private final Cache cache;
 
@@ -118,10 +126,13 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
 
     private static Mono<Void> writeCachedResponse(ServerWebExchange exchange,
         CachedResponse cachedResponse) {
+        var response = exchange.getResponse();
         if (exchange.checkNotModified(cachedResponse.getTimestamp())) {
+            // set cache control
+            setCacheControl(response);
             return exchange.getResponse().setComplete();
         }
-        var response = exchange.getResponse();
+
         response.beforeCommit(() -> Mono.fromRunnable(() -> {
             response.setStatusCode(cachedResponse.getStatusCode());
             cachedResponse.getHeaders().forEach((key, values) -> {
@@ -129,16 +140,17 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                     response.getHeaders().put(key, values);
                 }
             });
-            response.getHeaders().remove(HttpHeaders.CACHE_CONTROL);
-            response.getHeaders().remove(HttpHeaders.EXPIRES);
-            response.getHeaders().remove(HttpHeaders.PRAGMA);
-
-            response.getHeaders().setInstant("X-Halo-Cache-At", cachedResponse.getTimestamp());
+            setCacheControl(response);
+            response.getHeaders().setInstant(HALO_CACHE_AT_HEADER, cachedResponse.getTimestamp());
         }));
 
         var body = Flux.fromIterable(cachedResponse.getBody())
             .map(byteBuffer -> response.bufferFactory().wrap(byteBuffer));
         return response.writeAndFlushWith(Flux.from(body).window(1));
+    }
+
+    private static void setCacheControl(ServerHttpResponse response) {
+        response.getHeaders().setCacheControl(CACHE_CONTROL_VALUE);
     }
 
     class CacheResponseDecorator extends ServerHttpResponseDecorator {
