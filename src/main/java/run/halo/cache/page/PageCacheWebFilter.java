@@ -47,7 +47,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
     /**
      * The value for cache control value
      */
-    public static final String CACHE_CONTROL_VALUE = "max-age=3, must-revalidate";
+    public static final String CACHE_CONTROL_VALUE = "max-age=3, s-maxage=120, must-revalidate";
 
     public static final String HALO_CACHE_AT_HEADER = "X-Halo-Cache-At";
 
