@@ -234,10 +234,13 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
             List<ByteBuffer> buffers) {
             return Flux.from(body)
                 .doOnNext(dataBuffer -> {
-                    var byteBuffer = allocate(dataBuffer.readableByteCount());
-                    dataBuffer.toByteBuffer(byteBuffer);
-                    DataBufferUtils.release(dataBuffer);
-                    buffers.add(byteBuffer.asReadOnlyBuffer());
+                    try {
+                        var byteBuffer = allocate(dataBuffer.readableByteCount());
+                        dataBuffer.toByteBuffer(byteBuffer);
+                        buffers.add(byteBuffer.asReadOnlyBuffer());
+                    } finally {
+                        DataBufferUtils.release(dataBuffer);
+                    }
                 });
         }
     }
