@@ -14,6 +14,7 @@ import org.reactivestreams.Publisher;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -235,6 +236,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 .doOnNext(dataBuffer -> {
                     var byteBuffer = allocate(dataBuffer.readableByteCount());
                     dataBuffer.toByteBuffer(byteBuffer);
+                    DataBufferUtils.release(dataBuffer);
                     buffers.add(byteBuffer.asReadOnlyBuffer());
                 });
         }
