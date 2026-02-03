@@ -174,7 +174,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 log.debug("Caching response for {}", cacheKey);
                 var builder = new CachedResponse.CachedResponseBuilder();
                 var headers = new HttpHeaders();
-                headers.putAll(getHeaders());
+                getHeaders().forEach(headers::addAll);
                 headers.setCacheControl((String) null);
                 builder.statusCode(getStatusCode());
                 builder.timestamp(Instant.now());
@@ -206,7 +206,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 log.info("Caching response for {}", cacheKey);
                 var builder = new CachedResponse.CachedResponseBuilder();
                 var headers = new HttpHeaders();
-                headers.putAll(getHeaders());
+                getHeaders().forEach(headers::addAll);
                 builder.statusCode(getStatusCode());
                 builder.timestamp(Instant.now());
                 builder.headers(readOnlyHttpHeaders(headers));
