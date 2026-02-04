@@ -137,7 +137,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
         response.beforeCommit(() -> Mono.fromRunnable(() -> {
             response.setStatusCode(cachedResponse.getStatusCode());
             cachedResponse.getHeaders().forEach((key, values) -> {
-                if (!response.getHeaders().containsKey(key)) {
+                if (response.getHeaders().get(key) == null) {
                     response.getHeaders().put(key, values);
                 }
             });
