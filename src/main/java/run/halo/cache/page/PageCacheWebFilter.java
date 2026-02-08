@@ -137,9 +137,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
         response.beforeCommit(() -> Mono.fromRunnable(() -> {
             response.setStatusCode(cachedResponse.getStatusCode());
             cachedResponse.getHeaders().forEach((key, values) -> {
-                if (!response.getHeaders().containsKey(key)) {
-                    response.getHeaders().put(key, values);
-                }
+                response.getHeaders().putIfAbsent(key, values);
             });
             setCacheControl(response);
             response.getHeaders().setInstant(HALO_CACHE_AT_HEADER, cachedResponse.getTimestamp());
@@ -174,7 +172,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 log.debug("Caching response for {}", cacheKey);
                 var builder = new CachedResponse.CachedResponseBuilder();
                 var headers = new HttpHeaders();
-                headers.addAll(getHeaders());
+                getHeaders().forEach(headers::addAll);
                 headers.setCacheControl((String) null);
                 builder.statusCode(getStatusCode());
                 builder.timestamp(Instant.now());
@@ -206,7 +204,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
                 log.info("Caching response for {}", cacheKey);
                 var builder = new CachedResponse.CachedResponseBuilder();
                 var headers = new HttpHeaders();
-                headers.addAll(getHeaders());
+                getHeaders().forEach(headers::addAll);
                 builder.statusCode(getStatusCode());
                 builder.timestamp(Instant.now());
                 builder.headers(readOnlyHttpHeaders(headers));
