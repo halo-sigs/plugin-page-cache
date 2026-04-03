@@ -1,0 +1,14 @@
+apiVersion: v1alpha1
+kind: Setting
+metadata:
+  name: page-cache-setting
+spec:
+  forms:
+    - group: "basic"
+      label: "基础设置"
+      formSchema:
+        - $formkit: checkbox
+          name: alwaysCache
+          label: "总是缓存"
+          help: 开启之后，只会缓存匿名用户访问所产生的结果，不会缓存已登录用户访问所产生的结果。已登录用户看到的页面可能是匿名用户访问的结果。
+          value: false
