@@ -7,7 +7,9 @@ metadata:
   name: page-cache
 spec:
   enabled: true
-  requires: ">=2.21.0"
+  requires: ">=2.23.0"
+  settingName: page-cache-setting
+  configMapName: page-cache-configmap
   author:
     name: Halo
     website: https://github.com/halo-dev
