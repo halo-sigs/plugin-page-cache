@@ -26,6 +26,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.server.util.matcher.AndServerWebExchangeMatcher;
 import org.springframework.security.web.server.util.matcher.MediaTypeServerWebExchangeMatcher;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
@@ -122,7 +123,8 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
 
     private Mono<Boolean> isAnonymous() {
         return ReactiveSecurityContextHolder.getContext()
-            .map(context -> trustResolver.isAnonymous(context.getAuthentication()))
+            .mapNotNull(SecurityContext::getAuthentication)
+            .map(trustResolver::isAnonymous)
             .defaultIfEmpty(false);
     }
 
@@ -144,18 +146,6 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
         return isAnonymous();
     }
 
-
-    private boolean responseCacheable(ServerWebExchange exchange) {
-        var response = exchange.getResponse();
-        if (!MediaType.TEXT_HTML.equals(response.getHeaders().getContentType())) {
-            return false;
-        }
-        var statusCode = response.getStatusCode();
-        if (statusCode == null || !statusCode.isSameCodeAs(HttpStatus.OK)) {
-            return false;
-        }
-        return exchange.getAttributeOrDefault(ModelConst.POWERED_BY_HALO_TEMPLATE_ENGINE, false);
-    }
 
     private static String generateCacheKey(ServerHttpRequest request) {
         return request.getURI().toASCIIString();
@@ -206,9 +196,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
             @NonNull Publisher<? extends Publisher<? extends DataBuffer>> body) {
             return isResponseCacheable(exchange)
                 .filter(Boolean::booleanValue)
-                .switchIfEmpty(Mono.defer(() -> {
-                    return super.writeAndFlushWith(body).then(Mono.empty());
-                }))
+                .switchIfEmpty(Mono.defer(() -> super.writeAndFlushWith(body).then(Mono.empty())))
                 .flatMap(ignored -> {
                     log.debug("Caching response for {}", cacheKey);
                     var builder = new CachedResponse.CachedResponseBuilder();
@@ -241,7 +229,7 @@ public class PageCacheWebFilter implements AfterSecurityWebFilter {
         @Override
         @NonNull
         public Mono<Void> writeWith(@NonNull Publisher<? extends DataBuffer> body) {
-            return shouldCache(exchange)
+            return isResponseCacheable(exchange)
                 .filter(Boolean::booleanValue)
                 .switchIfEmpty(Mono.defer(() -> super.writeWith(body).then(Mono.empty())))
                 .flatMap(ignored -> {
