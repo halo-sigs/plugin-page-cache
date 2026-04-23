@@ -30,9 +30,9 @@ importers:
       '@halo-dev/ui-plugin-bundler-kit':
         specifier: ^2.21.1
         version: 2.21.1(@rsbuild/core@1.4.2)(@rsbuild/plugin-vue@1.0.7(@rsbuild/core@1.4.2)(@vue/compiler-sfc@3.4.31)(vue@3.4.31(typescript@5.5.3)))(@vitejs/plugin-vue@5.0.5(vite@5.3.2(@types/node@16.18.101)(sass@1.77.6)(terser@5.43.1))(vue@3.4.31(typescript@5.5.3)))(axios@1.7.2)(vite@5.3.2(@types/node@16.18.101)(sass@1.77.6)(terser@5.43.1))
-      '@iconify/json':
-        specifier: ^2.2.224
-        version: 2.2.224
+      '@iconify-json/ri':
+        specifier: ^1.2.10
+        version: 1.2.10
       '@rushstack/eslint-patch':
         specifier: ^1.10.3
         version: 1.10.3
@@ -518,8 +518,8 @@ packages:
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
     deprecated: Use @eslint/object-schema instead
 
-  '@iconify/json@2.2.224':
-    resolution: {integrity: sha512-VK7nFjtxUeyp+K311SbbeU8cxlZifiUWh0yYaXks4Sj0DTzubKTDMzRCuTcO/QdEQ/0qwDE8m2nn5+wQjS66gQ==}
+  '@iconify-json/ri@1.2.10':
+    resolution: {integrity: sha512-WWMhoncVVM+Xmu9T5fgu2lhYRrKTEWhKk3Com0KiM111EeEsRLiASjpsFKnC/SrB6covhUp95r2mH8tGxhgd5Q==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -3479,10 +3479,9 @@ snapshots:
 
   '@humanwhocodes/object-schema@2.0.3': {}
 
-  '@iconify/json@2.2.224':
+  '@iconify-json/ri@1.2.10':
     dependencies:
       '@iconify/types': 2.0.0
-      pathe: 1.1.2
 
   '@iconify/types@2.0.0': {}
 
