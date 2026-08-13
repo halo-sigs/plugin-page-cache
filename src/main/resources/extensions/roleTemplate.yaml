@@ -1,0 +1,16 @@
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: role-template-page-cache-clear
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "页面缓存"
+    rbac.authorization.halo.run/display-name: "清理页面缓存"
+    rbac.authorization.halo.run/ui-permissions: |
+      ["plugin:page-cache:clear"]
+rules:
+  - apiGroups: ["console.api.cache.halo.run"]
+    resources: ["caches"]
+    resourceNames: ["page"]
+    verbs: ["delete"]

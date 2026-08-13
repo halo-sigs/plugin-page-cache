@@ -10,7 +10,7 @@ export default definePlugin({
       return [
         {
           id: "refresh-page-cache",
-          permissions: ["*"],
+          permissions: ["plugin:page-cache:clear"],
           icon: markRaw(RiDatabase2Line),
           title: "刷新页面缓存",
           action: () => {
